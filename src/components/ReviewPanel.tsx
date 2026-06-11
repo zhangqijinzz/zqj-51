@@ -21,12 +21,43 @@ import { AnalyticsService } from '@/services/AnalyticsService';
 const PIE_COLORS = ['#FF8C42', '#FF4D6D', '#7CB518', '#3A86FF', '#FFD700', '#8B5CF6', '#EC4899', '#14B8A6'];
 
 export default function ReviewPanel() {
-  const { simulationResults, products, selectedScene, setActiveTab } = useAppStore();
+  const { simulationResults, products, selectedScene, setActiveTab, discountRules } = useAppStore();
 
   const summary = useMemo(
     () => AnalyticsService.calculateSummary(simulationResults),
     [simulationResults]
   );
+
+  const discountImpact = useMemo(() => {
+    if (discountRules.length === 0 || simulationResults.length === 0) return null;
+
+    let totalSold: Record<string, number> = {};
+    simulationResults.forEach((r) => {
+      Object.entries(r.productSales).forEach(([pid, sale]) => {
+        totalSold[pid] = (totalSold[pid] || 0) + sale.sold;
+      });
+    });
+
+    let theoreticalRevenue = 0;
+    let actualRevenue = 0;
+
+    Object.entries(totalSold).forEach(([pid, qty]) => {
+      const product = products.find((p) => p.id === pid);
+      if (product) {
+        theoreticalRevenue += product.price * qty;
+      }
+    });
+
+    simulationResults.forEach((r) => {
+      actualRevenue += r.revenue;
+    });
+
+    return {
+      theoreticalRevenue: Math.round(theoreticalRevenue * 100) / 100,
+      actualRevenue: Math.round(actualRevenue * 100) / 100,
+      discountAmount: Math.round((theoreticalRevenue - actualRevenue) * 100) / 100,
+    };
+  }, [discountRules, simulationResults, products]);
 
   const productPerf = useMemo(
     () => AnalyticsService.calculateProductPerformance(simulationResults, products),
@@ -154,6 +185,43 @@ export default function ReviewPanel() {
             </div>
           </div>
         </div>
+
+        {discountImpact && discountRules.length > 0 && (
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200">
+            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span className="text-lg">🎁</span>
+              折扣策略效果分析
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg p-4 shadow-sm">
+                <p className="text-xs text-gray-500 mb-1">已启用折扣</p>
+                <div className="flex flex-wrap gap-1">
+                  {discountRules.map((d) => (
+                    <span key={d.id} className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                      {d.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm">
+                <p className="text-xs text-gray-500 mb-1">原价营收</p>
+                <p className="text-xl font-bold text-gray-700">¥{discountImpact.theoreticalRevenue.toFixed(2)}</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm">
+                <p className="text-xs text-gray-500 mb-1">折扣让利</p>
+                <p className="text-xl font-bold text-red-500">-¥{discountImpact.discountAmount.toFixed(2)}</p>
+              </div>
+              <div className="bg-white rounded-lg p-4 shadow-sm">
+                <p className="text-xs text-gray-500 mb-1">实际营收</p>
+                <p className="text-xl font-bold text-purple-600">¥{discountImpact.actualRevenue.toFixed(2)}</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-3">
+              💡 折扣虽减少了单笔收入，但提升了 {discountRules.length > 0 ? '约10%' : ''} 的转化率和购买意愿，
+              实际效果需要结合具体场景评估。
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">

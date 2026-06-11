@@ -1,4 +1,4 @@
-import type { Product, Scene, SimulationResult, StallItem } from '@/types';
+import type { Product, Scene, SimulationResult, StallItem, DiscountRule } from '@/types';
 import { PricingService } from './PricingService';
 
 interface SimulationContext {
@@ -7,6 +7,7 @@ interface SimulationContext {
   scene: Scene;
   startHour: number;
   totalHours: number;
+  discountRules: DiscountRule[];
 }
 
 export class TrafficSimulation {
@@ -32,14 +33,23 @@ export class TrafficSimulation {
     return matched / Math.max(product.tags.length, 1);
   }
 
-  private static calculatePriceScore(product: Product, scene: Scene): number {
+  private static calculatePriceScore(product: Product, scene: Scene, discountRules: DiscountRule[]): number {
     const avgPrice = scene.avgSpend / 2;
-    const priceRatio = product.price / avgPrice;
+    let effectivePrice = product.price;
+
+    if (discountRules.length > 0) {
+      const percentageDiscount = discountRules.find((d) => d.type === 'percentage');
+      if (percentageDiscount) {
+        effectivePrice = PricingService.applyDiscount(product.price, percentageDiscount);
+      }
+    }
+
+    const priceRatio = effectivePrice / avgPrice;
     const sensitivity = scene.priceSensitivity;
     if (priceRatio <= 1) {
-      return 1 - sensitivity * 0.2;
+      return 1 - sensitivity * 0.2 + (discountRules.length > 0 ? 0.1 : 0);
     }
-    return Math.max(0, 1 - sensitivity * (priceRatio - 1) * 0.5);
+    return Math.max(0, 1 - sensitivity * (priceRatio - 1) * 0.5 + (discountRules.length > 0 ? 0.05 : 0));
   }
 
   private static calculateDisplayBonus(stallItems: StallItem[], productId: string): number {
@@ -62,7 +72,7 @@ export class TrafficSimulation {
     visitors: number,
     context: SimulationContext
   ): Record<string, number> {
-    const { products, scene, stallItems } = context;
+    const { products, scene, stallItems, discountRules } = context;
     const soldQuantities: Record<string, number> = {};
 
     const availableProducts = products.filter((p) => p.stock > 0);
@@ -71,7 +81,7 @@ export class TrafficSimulation {
     const productScores: { product: Product; score: number }[] = availableProducts.map(
       (product) => {
         const tagScore = this.calculateTagMatchScore(product, scene);
-        const priceScore = this.calculatePriceScore(product, scene);
+        const priceScore = this.calculatePriceScore(product, scene, discountRules);
         const displayBonus = this.calculateDisplayBonus(stallItems, product.id);
         const score = (tagScore * 0.4 + priceScore * 0.3 + 0.3) * displayBonus;
         return { product, score };
@@ -80,7 +90,7 @@ export class TrafficSimulation {
 
     const totalScore = productScores.reduce((sum, ps) => sum + ps.score, 0);
 
-    const buyers = Math.floor(visitors * scene.stayRate);
+    const buyers = Math.floor(visitors * scene.stayRate * (discountRules.length > 0 ? 1.1 : 1));
 
     for (let i = 0; i < buyers; i++) {
       const itemsCount = 1 + Math.floor(Math.random() * 3);
@@ -103,7 +113,7 @@ export class TrafficSimulation {
   }
 
   static simulateHour(context: SimulationContext, currentHour: number): SimulationResult {
-    const { products, scene, startHour } = context;
+    const { products, scene, startHour, discountRules } = context;
     const absoluteHour = (startHour + currentHour) % 24;
 
     const visitors = this.calculateHourlyTraffic(scene, absoluteHour);
@@ -111,7 +121,8 @@ export class TrafficSimulation {
 
     const { revenue, cost, profit } = PricingService.calculateTotalRevenue(
       products,
-      soldQuantities
+      soldQuantities,
+      discountRules
     );
 
     const totalSold = Object.values(soldQuantities).reduce((sum, q) => sum + q, 0);
@@ -145,6 +156,7 @@ export class TrafficSimulation {
     products: Product[],
     stallItems: StallItem[],
     scene: Scene,
+    discountRules: DiscountRule[] = [],
     startHour: number = 18,
     totalHours: number = 4
   ): SimulationResult[] {
@@ -155,6 +167,7 @@ export class TrafficSimulation {
       scene,
       startHour,
       totalHours,
+      discountRules,
     };
 
     let currentProducts = [...products];

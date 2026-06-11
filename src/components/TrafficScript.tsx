@@ -18,6 +18,7 @@ export default function TrafficScript() {
     setSimulating,
     simulationHours,
     setActiveTab,
+    discountRules,
   } = useAppStore();
 
   const [currentHour, setCurrentHour] = useState(0);
@@ -46,6 +47,7 @@ export default function TrafficScript() {
       products,
       stallItems,
       selectedScene,
+      discountRules,
       startHour,
       simulationHours
     );
