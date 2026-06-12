@@ -92,6 +92,7 @@ export interface AppState {
   updateDiscountRule: (id: string, updates: Partial<DiscountRule>) => void;
   removeDiscountRule: (id: string) => void;
   setSelectedScene: (scene: Scene | null) => void;
+  setSimulationHours: (hours: number) => void;
   setSimulating: (val: boolean) => void;
   addSimulationResult: (result: SimulationResult) => void;
   clearSimulationResults: () => void;

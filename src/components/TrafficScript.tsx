@@ -17,6 +17,7 @@ export default function TrafficScript() {
     isSimulating,
     setSimulating,
     simulationHours,
+    setSimulationHours,
     setActiveTab,
     discountRules,
   } = useAppStore();
@@ -286,7 +287,7 @@ export default function TrafficScript() {
                     <label className="text-xs text-gray-500 block mb-1">模拟时长</label>
                     <select
                       value={simulationHours}
-                      onChange={(e) => useAppStore.setState({ simulationHours: parseInt(e.target.value) })}
+                      onChange={(e) => setSimulationHours(parseInt(e.target.value))}
                       disabled={isSimulating}
                       className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-400 disabled:bg-gray-50"
                     >
